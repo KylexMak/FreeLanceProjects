@@ -27,14 +27,13 @@ with st.sidebar:
     st.header("Pokmon TCG Pocket")
     st.info("Built with LangChain, OpenAI, and FAISS.")
     
-    st.subheader("📚 Library Stats")
+    st.subheader("Library Stats")
     st.write("- **Sets Loaded:** 15 (Series: `tcgp`)")
     st.write("- **Total Cards:** ~2,400 (Unique)")
     st.write("- **RAG Method:** Ultimate-Context Search (k=100)")
     
     if st.button("Clear Chat"):
         st.session_state.messages = []
-        # Also clear the pipeline to force a fresh re-initialization
         if "rag_pipeline" in st.session_state:
             del st.session_state.rag_pipeline
         if "global_overview" in st.session_state:
@@ -50,15 +49,12 @@ for message in st.session_state.messages:
 
 def format_docs(docs):
     context = "\n\n".join(doc.page_content for doc in docs)
-    # Always prepend the Global Library Overview if it exists in session state
     if "global_overview" in st.session_state:
         context = "--- GLOBAL LIBRARY GROUND TRUTH ---\n" + st.session_state.global_overview + "\n\n" + context
     return context
 
-# Load Resources (Cached)
 @st.cache_resource
 def load_rag_pipeline():
-    # Dynamic/Lazy Imports to keep the initial UI load instant
     from langchain_openai import ChatOpenAI
     from langchain_community.vectorstores import FAISS
     from langchain_huggingface import HuggingFaceEmbeddings
@@ -77,26 +73,26 @@ def load_rag_pipeline():
         search_kwargs={"k": 100, "fetch_k": 200}
     )
     
-    # Pre-fetch Global Overview for session state
     if "global_overview" not in st.session_state:
         overview_docs = vector_store.similarity_search("GLOBAL LIBRARY OVERVIEW", k=1)
         if overview_docs:
             st.session_state.global_overview = overview_docs[0].page_content
     
-    # Initialize LLM (OpenAI GPT-4o-mini)
     llm = ChatOpenAI(
         temperature=0,
         model_name="gpt-4o-mini",
         openai_api_key=os.environ.get("OPENAI_KEY")
     )
     
-    # System Prompt
     system_prompt = (
         "You are an expert Pokemon TCG Pocket assistant. "
         "Use ONLY the provided database context to answer the user's question. "
         "IMPORTANT: Always trust the 'GLOBAL LIBRARY GROUND TRUTH' section in the context for absolute counts and set names. "
         "STRICT IDENTITY: 'Pikachu' and 'Pikachu ex' are DIFFERENT cards. If a user asks for an 'ex' card and it is not found, "
-        "do not pretend a regular card is the 'ex' version. Clarify the difference to the user.\n\n"
+        "do not pretend a regular card is the 'ex' version. Clarify the difference to the user.\n"
+        "TYPO RECOVERY: The search engine (Retriever) is sensitive to spelling. If the user makes an obvious typo (e.g., 'worturtle') "
+        "and you find no matching cards in the context, but your internal knowledge suggests a likely correct spelling (e.g., 'Wartortle'), "
+        "inform the user of the likely spelling and ask them to retry so the search engine can work correctly.\n\n"
         "DATABASE CONTEXT:\n{context}"
     )
     
@@ -105,7 +101,7 @@ def load_rag_pipeline():
         ("human", "{input}"),
     ])
     
-    # Create Chain using LCEL
+    # RAG chain stuff
     rag_chain = (
         {"context": retriever | format_docs, "input": RunnablePassthrough()}
         | prompt
@@ -115,18 +111,15 @@ def load_rag_pipeline():
     
     return rag_chain, retriever
 
-# Chat Input Block
 if user_input := st.chat_input("What would you like to know?"):
     st.session_state.messages.append({"role": "user", "content": user_input})
     with st.chat_message("user"):
         st.markdown(user_input)
         
     with st.chat_message("assistant"):
-        # Lazy Loading the Pipeline on the first interaction
         if "rag_pipeline" not in st.session_state:
             with st.status("Initializing Pokedex Brain (first time only)...", expanded=True) as status:
-                st.write("📂 Loading heavy AI libraries...")
-                # Dynamic/Lazy Imports
+                st.write("Loading heavy AI libraries...")
                 from langchain_openai import ChatOpenAI
                 from langchain_community.vectorstores import FAISS
                 from langchain_huggingface import HuggingFaceEmbeddings
@@ -134,20 +127,20 @@ if user_input := st.chat_input("What would you like to know?"):
                 from langchain_core.runnables import RunnablePassthrough
                 from langchain_core.output_parsers import StrOutputParser
                 
-                st.write("🧠 Loading Embedding Model (MiniLM)...")
+                st.write("Loading Embedding Model (MiniLM)...")
                 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
                 
-                st.write("📚 Indexing 2,400+ cards from FAISS...")
+                st.write("Indexing 2,400+ cards from FAISS...")
                 if not os.path.exists(FAISS_PATH):
                      st.error("Error: Vector index not found! Please run 'python ingest.py' first.")
                      st.stop()
                 vector_store = FAISS.load_local(FAISS_PATH, embeddings, allow_dangerous_deserialization=True)
                 retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 30, "fetch_k": 90})
                 
-                st.write("🌩️ Connecting to OpenAI (GPT-4o-mini)...")
+                st.write("Connecting to OpenAI (GPT-4o-mini)...")
                 llm = ChatOpenAI(temperature=0, model_name="gpt-4o-mini", openai_api_key=os.environ.get("OPENAI_KEY"))
-                
-                # Setup Pipeline (Strict Verification)
+
+                #TODO: Shorten this prompt to make it more effective
                 system_prompt = (
                     "You are an expert Pokemon TCG Pocket assistant. "
                     "Use ONLY the provided database context below (including the Global Library Ground Truth) to answer questions. "
@@ -156,23 +149,28 @@ if user_input := st.chat_input("What would you like to know?"):
                     "1. TYPE/RARITY VERIFICATION: Check the actual fields on each card. Do not assume from general knowledge.\n"
                     "2. GLOBAL COUNTS: For questions about the entire collection (totals, sets, rarities), "
                     "trust the 'GLOBAL LIBRARY GROUND TRUTH' section as the absolute source of truth.\n"
-                    "5. OFF-TOPIC RULE: If the user asks a question that is COMPLETELY unrelated to Pokemon cards "
+                    "3. OFF-TOPIC RULE: If the user asks a question that is COMPLETELY unrelated to Pokemon cards "
                     "(e.g., world politics, cooking recipes), respond that it is outside your data scope. "
                     "Otherwise, try to find the answer in the provided context.\n"
-                    "6. EX/NON-EX DISTINCTNESS: Cards with 'ex' in their name (like 'Mewtwo ex') are fundamentally different from regular versions (like 'Mewtwo'). "
-                    "If the user asks for an 'ex' card, do NOT present a non-ex card as a positive match. "
-                    "Explicitly state if the 'ex' version is missing but a regular version exists.\n\n"
+                    "4. EX/NON-EX DISTINCTNESS: Cards with 'ex' in their name (like 'Mewtwo ex') are fundamentally different from regular versions (like 'Mewtwo'). "
+                    "If the user asks for an 'ex' card, do NOT present a non-ex card as a positive match.\n\n"
                     "DATABASE CONTEXT:\n{context}"
                 )
                 prompt = ChatPromptTemplate.from_messages([("system", system_prompt), ("human", "{input}")])
                 
-                # Fetch Global Overview for context persistence
                 overview_docs = vector_store.similarity_search("GLOBAL LIBRARY OVERVIEW", k=1)
                 if overview_docs:
                     st.session_state.global_overview = overview_docs[0].page_content
                 
+                refinement_prompt = ChatPromptTemplate.from_messages([
+                    ("system", "You are a Pokemon TCG expert. Rewrite the user's query to correct typos in Pokemon names or set names to optimize it for a database search. Output ONLY the rewritten search string, nothing else. "
+                               "Example: 'worturtle' -> 'Wartortle'. Example: 'pikachu ex gen apex' -> 'Pikachu ex Genetic Apex'"),
+                    ("human", "{input}")
+                ])
+                query_refiner = refinement_prompt | llm | StrOutputParser()
+
                 st.session_state.rag_pipeline = (
-                    {"context": retriever | format_docs, "input": RunnablePassthrough()}
+                    {"context": query_refiner | retriever | format_docs, "input": RunnablePassthrough()}
                     | prompt | llm | StrOutputParser()
                 )
                 st.session_state.retriever = retriever
@@ -183,16 +181,12 @@ if user_input := st.chat_input("What would you like to know?"):
         
         with st.spinner("Searching through 15 sets..."):
             try:
-                # Get response
                 answer = rag_pipeline.invoke(user_input)
                 st.markdown(answer)
-                
-                # Manual retrieval for images
+
                 docs = retriever.invoke(user_input)
                 if docs:
                     with st.expander("View Reference Card Images"):
-                        # Smart Filter: Strict 1-to-1 mapping by name
-                        # Sort by longest name first to prevent substring false matches
                         sorted_docs = sorted(docs, key=lambda d: len(d.metadata.get("name", "")), reverse=True)
                         mentioned_docs = []
                         seen_names = set()
@@ -220,7 +214,7 @@ if user_input := st.chat_input("What would you like to know?"):
                                     if img_url:
                                         st.image(img_url, caption=card_name)
                                     else:
-                                        st.info(f"🎨 No artwork URL found for {card_name}")
+                                        st.info(f"No artwork URL found for {card_name}")
                         else:
                             st.write("No specific card art matches the conversation context.")
                 
@@ -229,11 +223,11 @@ if user_input := st.chat_input("What would you like to know?"):
             except Exception as e:
                 error_msg = str(e)
                 if "rate_limit" in error_msg.lower() or "429" in error_msg or "413" in error_msg:
-                    st.error("⚡ **Rate limit reached!** The AI model has hit its token limit. Please wait about 60 seconds and try again.")
-                    st.info("💡 **Tip:** Shorter questions use fewer tokens and are less likely to hit the limit.")
+                    st.error("**Rate limit reached!** The AI model has hit its token limit. Please wait about 60 seconds and try again.")
+                    st.info("**Tip:** Shorter questions use fewer tokens and are less likely to hit the limit.")
                 elif "model_decommissioned" in error_msg.lower():
-                    st.error("🚫 **Model unavailable.** The AI model has been retired. Please contact the developer to update the model.")
+                    st.error("**Model unavailable.** The AI model has been retired. Please contact the developer to update the model.")
                 else:
-                    st.error(f"❌ **Something went wrong:** {error_msg}")
-                    st.info("💡 Try refreshing the page or waiting a moment before trying again.")
+                    st.error(f"**Something went wrong:** {error_msg}")
+                    st.info("Try refreshing the page or waiting a moment before trying again.")
 

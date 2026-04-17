@@ -118,6 +118,13 @@ if evolve_from:
     text_parts.append(f"Evolves From: {evolve_from}")
 ```
 
+### 3.6 Advanced Query Orchestration: Autonomous Query Rewriting
+A critical challenge in RAG systems is the "Retriever Gap": where a user misspells a query (e.g., "worturtle"), causing the vector search engine to fail even if the LLM knows what the user meant.
+
+**The Solution:** We implemented **Autonomous Query Orchestration**. Before any search is performed, the user's input is passed through a "Query Refiner" chain. This specialized LLM instruction identifies typos in Pokémon names or set names and rewrites the query for optimal retrieval.
+
+**Impact:** This ensures the "dumber" search engine always receives a clean, correctly-spelled input, allowing the system to handle misspellings seamlessly without requiring the user to manually correct themselves.
+
 ## 4. Performance Results
 By leveraging **OpenAI's high-speed inference**, the average response time for a complex query (retrieving 30+ documents and generating a response) remains highly competitive (under 2 seconds). The use of **FAISS** allows for local vector storage, eliminating the need for a costly cloud-based vector database.
 

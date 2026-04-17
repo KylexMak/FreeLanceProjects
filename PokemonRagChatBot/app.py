@@ -94,8 +94,9 @@ def load_rag_pipeline():
     system_prompt = (
         "You are an expert Pokemon TCG Pocket assistant. "
         "Use ONLY the provided database context to answer the user's question. "
-        "This includes answering 'meta' questions about the dataset itself (e.g., how many cards, sets, or rarities are included). "
-        "IMPORTANT: Always trust the 'GLOBAL LIBRARY GROUND TRUTH' section in the context for absolute counts and set names.\n\n"
+        "IMPORTANT: Always trust the 'GLOBAL LIBRARY GROUND TRUTH' section in the context for absolute counts and set names. "
+        "STRICT IDENTITY: 'Pikachu' and 'Pikachu ex' are DIFFERENT cards. If a user asks for an 'ex' card and it is not found, "
+        "do not pretend a regular card is the 'ex' version. Clarify the difference to the user.\n\n"
         "DATABASE CONTEXT:\n{context}"
     )
     
@@ -155,9 +156,12 @@ if user_input := st.chat_input("What would you like to know?"):
                     "1. TYPE/RARITY VERIFICATION: Check the actual fields on each card. Do not assume from general knowledge.\n"
                     "2. GLOBAL COUNTS: For questions about the entire collection (totals, sets, rarities), "
                     "trust the 'GLOBAL LIBRARY GROUND TRUTH' section as the absolute source of truth.\n"
-                    "3. OFF-TOPIC RULE: If the user asks a question that is COMPLETELY unrelated to Pokemon cards "
+                    "5. OFF-TOPIC RULE: If the user asks a question that is COMPLETELY unrelated to Pokemon cards "
                     "(e.g., world politics, cooking recipes), respond that it is outside your data scope. "
-                    "Otherwise, try to find the answer in the provided context.\n\n"
+                    "Otherwise, try to find the answer in the provided context.\n"
+                    "6. EX/NON-EX DISTINCTNESS: Cards with 'ex' in their name (like 'Mewtwo ex') are fundamentally different from regular versions (like 'Mewtwo'). "
+                    "If the user asks for an 'ex' card, do NOT present a non-ex card as a positive match. "
+                    "Explicitly state if the 'ex' version is missing but a regular version exists.\n\n"
                     "DATABASE CONTEXT:\n{context}"
                 )
                 prompt = ChatPromptTemplate.from_messages([("system", system_prompt), ("human", "{input}")])

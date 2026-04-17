@@ -24,7 +24,6 @@ def fetch_pocket_cards():
         num_cards = len(cards_list)
         
         for i, card_summary in enumerate(cards_list):
-            # De-duplicate by card ID to keep every unique card entry
             card_id = card_summary["id"]
             
             if card_id in seen_keys:
@@ -49,7 +48,6 @@ def process_card_to_doc(card):
     
     text_parts = [f"Card Name: {name}", f"Set: {set_name}", f"Category: {category}", f"Rarity: {rarity}"]
     
-    # Enrich Mega Evolution visibility for RAG search
     if "Mega" in name and "Meganium" not in name and "Yanmega" not in name:
         text_parts.append("Special Feature: This is a Mega Evolution forms card.")
     
@@ -109,10 +107,9 @@ def main():
     print(f"Fetched {len(all_cards)} unique cards. Initializing embeddings...", flush=True)
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     
-    # Process all cards into Documents
     docs = [process_card_to_doc(c) for c in all_cards]
     
-    # Add a "Global Overview" document to handle "how many" questions reliably
+    #TODO: Make this more dynamic
     overview_text = (
         "GLOBAL LIBRARY OVERVIEW: This library contains a comprehensive collection of Pokemon TCG Pocket cards. "
         "It includes exactly 15 sets: Genetic Apex, Mythical Island, Space-Time Smackdown, Triumphant Light, "

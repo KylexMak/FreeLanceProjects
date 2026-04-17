@@ -38,6 +38,15 @@ rag_chain = (
 )
 ```
 
+### 2.3 Embeddings and Chunking Strategy
+The project utilizes the **sentence-transformers/all-MiniLM-L6-v2** embedding model. This model converts the structured text of each card into a 384-dimensional vector that captures semantic meaning. 
+
+**Chunking Strategy:**
+Unlike standard RAG systems that split long documents into arbitrary character chunks (e.g., 500-character blocks), this project implements **Atomic Metadata Chunking**:
+- **Granularity:** Each "chunk" corresponds exactly to one unique Pokémon card.
+- **Rationale:** Splitting a single card's data (e.g., separating its HP from its name) would lead to retrieval failure. By keeping each card as a single atomic unit, the retriever ensures the LLM receives the full context for a specific Pokémon in every search result.
+- **Optimization:** This strategy results in approximately 2,480 discrete vectors, allowing for incredibly precise retrieval of specific card attributes.
+
 ## 3. Challenges and Solutions
 
 ### 3.1 Mitigation of LLM Hallucinations (Types and Rarity)

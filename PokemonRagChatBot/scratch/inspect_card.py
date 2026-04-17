@@ -8,6 +8,4 @@ def inspect_card(card_id):
     print(json.dumps(card, indent=2))
 
 if __name__ == "__main__":
-    # Raichu is an evolution, Pikachu is a base card
-    # A1-157 is Raichu (Genetic Apex)
     inspect_card("A1-157")

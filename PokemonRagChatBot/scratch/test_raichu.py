@@ -6,7 +6,7 @@ def test():
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     
-    # Testing for Raichu ex
+    # Is the raichu ex?
     query = "Raichu ex"
     docs = vector_store.similarity_search(query, k=5)
     

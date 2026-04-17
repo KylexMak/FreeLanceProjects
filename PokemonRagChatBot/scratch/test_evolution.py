@@ -6,7 +6,6 @@ def test():
     embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
     vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
     
-    # Testing for evolution data
     query = "Who does Rhydon evolve from?"
     docs = vector_store.similarity_search(query, k=3)
     

@@ -16,7 +16,6 @@ def explore_api():
             
     if not pocket_series:
         print("Pocket series not found in main series list. Searching specifically...")
-        # Sometimes it might be under a different name or I need to check sets
         for s in series_list:
             print(f"Found series: {s.get('name')} (ID: {s.get('id')})")
     else:

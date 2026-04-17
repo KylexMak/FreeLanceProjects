@@ -56,6 +56,13 @@ def process_card_to_doc(card):
     if category == "Pokemon":
         hp = card.get("hp", "N/A")
         types = ", ".join(card.get("types", []))
+        stage = card.get("stage", "Basic")
+        evolve_from = card.get("evolveFrom")
+        
+        text_parts.append(f"Stage: {stage}")
+        if evolve_from:
+            text_parts.append(f"Evolves From: {evolve_from}")
+            
         text_parts.append(f"HP: {hp}")
         text_parts.append(f"Types: {types}")
         

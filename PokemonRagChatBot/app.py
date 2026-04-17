@@ -34,6 +34,12 @@ with st.sidebar:
     
     if st.button("Clear Chat"):
         st.session_state.messages = []
+        # Also clear the pipeline to force a fresh re-initialization
+        if "rag_pipeline" in st.session_state:
+            del st.session_state.rag_pipeline
+        if "global_overview" in st.session_state:
+            del st.session_state.global_overview
+        st.rerun()
 
 if "messages" not in st.session_state:
     st.session_state.messages = []
@@ -43,7 +49,11 @@ for message in st.session_state.messages:
         st.markdown(message["content"])
 
 def format_docs(docs):
-    return "\n\n".join(doc.page_content for doc in docs)
+    context = "\n\n".join(doc.page_content for doc in docs)
+    # Always prepend the Global Library Overview if it exists in session state
+    if "global_overview" in st.session_state:
+        context = "--- GLOBAL LIBRARY GROUND TRUTH ---\n" + st.session_state.global_overview + "\n\n" + context
+    return context
 
 # Load Resources (Cached)
 @st.cache_resource
@@ -67,6 +77,12 @@ def load_rag_pipeline():
         search_kwargs={"k": 100, "fetch_k": 200}
     )
     
+    # Pre-fetch Global Overview for session state
+    if "global_overview" not in st.session_state:
+        overview_docs = vector_store.similarity_search("GLOBAL LIBRARY OVERVIEW", k=1)
+        if overview_docs:
+            st.session_state.global_overview = overview_docs[0].page_content
+    
     # Initialize LLM (OpenAI GPT-4o-mini)
     llm = ChatOpenAI(
         temperature=0,
@@ -77,10 +93,9 @@ def load_rag_pipeline():
     # System Prompt
     system_prompt = (
         "You are an expert Pokemon TCG Pocket assistant. "
-        "Use the provided database context to answer the user's question accurately. "
-        "IMPORTANT: If the 'GLOBAL LIBRARY OVERVIEW' in the context provides specific counts (like the number of sets or Mega Evolutions), "
-        "trust those numbers as the absolute truth for the library. "
-        "Then, list every unique Pokemon name that matches the query found across the entire context to support your answer.\n\n"
+        "Use ONLY the provided database context to answer the user's question. "
+        "This includes answering 'meta' questions about the dataset itself (e.g., how many cards, sets, or rarities are included). "
+        "IMPORTANT: Always trust the 'GLOBAL LIBRARY GROUND TRUTH' section in the context for absolute counts and set names.\n\n"
         "DATABASE CONTEXT:\n{context}"
     )
     
@@ -134,22 +149,23 @@ if user_input := st.chat_input("What would you like to know?"):
                 # Setup Pipeline (Strict Verification)
                 system_prompt = (
                     "You are an expert Pokemon TCG Pocket assistant. "
-                    "Use ONLY the provided database context below to answer questions. "
+                    "Use ONLY the provided database context below (including the Global Library Ground Truth) to answer questions. "
+                    "You are permitted and encouraged to answer questions about the contents and scope of your card dataset (how many sets, how many cards, etc.).\n"
                     "CRITICAL RULES:\n"
-                    "1. RARITY VERIFICATION: When a user asks about a specific rarity (e.g., '2 Diamond'), "
-                    "you MUST check the 'Rarity' field for EACH card before listing it. "
-                    "Do NOT guess — if a card's Rarity field says 'One Diamond', do NOT include it in a 'Two Diamond' answer.\n"
-                    "2. TYPE VERIFICATION: Check the actual 'Types' field on each card. "
-                    "Do not assume a Pokemon's type from general knowledge.\n"
-                    "3. GLOBAL COUNTS: Trust the 'GLOBAL LIBRARY OVERVIEW' for total counts.\n"
-                    "4. COUNTING RULE: After making your list, COUNT the items you listed. "
-                    "The number you state MUST match the actual number of items in your list. "
-                    "If the GLOBAL LIBRARY OVERVIEW has a total count, state that total and clarify "
-                    "'here are X from the database context' if you can only show a partial list.\n"
-                    "5. If a card's metadata does not match the user's query, exclude it.\n\n"
+                    "1. TYPE/RARITY VERIFICATION: Check the actual fields on each card. Do not assume from general knowledge.\n"
+                    "2. GLOBAL COUNTS: For questions about the entire collection (totals, sets, rarities), "
+                    "trust the 'GLOBAL LIBRARY GROUND TRUTH' section as the absolute source of truth.\n"
+                    "3. OFF-TOPIC RULE: If the user asks a question that is COMPLETELY unrelated to Pokemon cards "
+                    "(e.g., world politics, cooking recipes), respond that it is outside your data scope. "
+                    "Otherwise, try to find the answer in the provided context.\n\n"
                     "DATABASE CONTEXT:\n{context}"
                 )
                 prompt = ChatPromptTemplate.from_messages([("system", system_prompt), ("human", "{input}")])
+                
+                # Fetch Global Overview for context persistence
+                overview_docs = vector_store.similarity_search("GLOBAL LIBRARY OVERVIEW", k=1)
+                if overview_docs:
+                    st.session_state.global_overview = overview_docs[0].page_content
                 
                 st.session_state.rag_pipeline = (
                     {"context": retriever | format_docs, "input": RunnablePassthrough()}

@@ -49,10 +49,10 @@ One of the most significant challenges was the LLM hallucinating card types base
 system_prompt = (
     "Use ONLY the provided database context below to answer questions.\n"
     "CRITICAL RULES:\n"
-    "1. TYPE VERIFICATION: Check the actual 'Types' field on each card. "
-    "Do not assume a Pokemon's type from general knowledge.\n"
-    "2. RARITY VERIFICATION: Contact the 'Rarity' field for EACH card. "
-    "If a card's field says 'One Diamond', do NOT include it in a 'Two Diamond' list."
+    "1. TYPE/RARITY VERIFICATION: Verify all stats directly from card data.\n"
+    "2. DATASET SCOPE: You are permitted to answer 'meta' questions "
+    "about your dataset (sets, totals) using GLOBAL LIBRARY GROUND TRUTH.\n"
+    "3. OFF-TOPIC RULE: Only refuse questions completely unrelated to Pokemon."
 )
 ```
 
@@ -100,10 +100,22 @@ if "rag_pipeline" not in st.session_state:
     with st.status("Initializing Pokedex Brain (first time only)..."):
         # Imports happen only when needed
         from langchain_openai import ChatOpenAI
-        from langchain_community.vectorstores import FAISS
-        from langchain_huggingface import HuggingFaceEmbeddings
         ...
         st.session_state.rag_pipeline = create_chain()
+```
+
+### 3.5 Information Enrichment: Evolution Chain Mapping
+A common user query involves the evolution status of a Pokémon (e.g., "What does this card evolve from?"). While base RAG can find card names, it often misses relational data if not explicitly indexed.
+
+**Solution:** We updated the `ingest.py` script to pull the `stage` and `evolveFrom` fields from the TCGdex API and include them directly in the searchable document text.
+
+```python
+# Updated ingestion logic to capture evolution relations
+stage = card.get("stage", "Basic")
+evolve_from = card.get("evolveFrom")
+text_parts.append(f"Stage: {stage}")
+if evolve_from:
+    text_parts.append(f"Evolves From: {evolve_from}")
 ```
 
 ## 4. Performance Results

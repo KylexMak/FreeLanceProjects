@@ -1,5 +1,6 @@
 langchain
 langchain-groq
+langchain-openai
 langchain-huggingface
 langchain-community
 sentence-transformers

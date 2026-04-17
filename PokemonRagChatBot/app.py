@@ -2,17 +2,13 @@ import streamlit as st
 import os
 from dotenv import load_dotenv
 
-# Resolve paths relative to this script (needed for Streamlit Cloud)
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 FAISS_PATH = os.path.join(BASE_DIR, "faiss_index")
 
-# Load environment variables
 load_dotenv()
 
-# Set Page Config
 st.set_page_config(page_title="Pokmon TCG Pocket Chatbot", page_icon="", layout="centered")
 
-# App Title & UI Aesthetics
 st.markdown("""
 <style>
     .main {
@@ -27,10 +23,9 @@ st.markdown("""
 st.title(" Pokmon TCG Pocket RAG Chatbot")
 st.markdown("Ask me anything about the **Genetic Apex** and other Pocket series cards!")
 
-# Initialize Sidebar
 with st.sidebar:
     st.header("Pokmon TCG Pocket")
-    st.info("Built with LangChain, Groq, and FAISS.")
+    st.info("Built with LangChain, OpenAI, and FAISS.")
     
     st.subheader("📚 Library Stats")
     st.write("- **Sets Loaded:** 15 (Series: `tcgp`)")
@@ -40,11 +35,9 @@ with st.sidebar:
     if st.button("Clear Chat"):
         st.session_state.messages = []
 
-# Initialize Chat History
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# Display Chat Messages
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
@@ -56,7 +49,7 @@ def format_docs(docs):
 @st.cache_resource
 def load_rag_pipeline():
     # Dynamic/Lazy Imports to keep the initial UI load instant
-    from langchain_groq import ChatGroq
+    from langchain_openai import ChatOpenAI
     from langchain_community.vectorstores import FAISS
     from langchain_huggingface import HuggingFaceEmbeddings
     from langchain_core.prompts import ChatPromptTemplate
@@ -74,11 +67,11 @@ def load_rag_pipeline():
         search_kwargs={"k": 100, "fetch_k": 200}
     )
     
-    # Initialize LLM (Switched to 8b-instant to avoid rate limits)
-    llm = ChatGroq(
+    # Initialize LLM (OpenAI GPT-4o-mini)
+    llm = ChatOpenAI(
         temperature=0,
-        model_name="llama3-8b-8192",
-        api_key=os.environ.get("GROQ_API_KEY")
+        model_name="gpt-4o-mini",
+        openai_api_key=os.environ.get("OPENAI_KEY")
     )
     
     # System Prompt
@@ -118,7 +111,7 @@ if user_input := st.chat_input("What would you like to know?"):
             with st.status("Initializing Pokedex Brain (first time only)...", expanded=True) as status:
                 st.write("📂 Loading heavy AI libraries...")
                 # Dynamic/Lazy Imports
-                from langchain_groq import ChatGroq
+                from langchain_openai import ChatOpenAI
                 from langchain_community.vectorstores import FAISS
                 from langchain_huggingface import HuggingFaceEmbeddings
                 from langchain_core.prompts import ChatPromptTemplate
@@ -135,8 +128,8 @@ if user_input := st.chat_input("What would you like to know?"):
                 vector_store = FAISS.load_local(FAISS_PATH, embeddings, allow_dangerous_deserialization=True)
                 retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 30, "fetch_k": 90})
                 
-                st.write("🌩️ Connecting to Groq (Llama-3.3-70B)...")
-                llm = ChatGroq(temperature=0, model_name="llama-3.3-70b-versatile", api_key=os.environ.get("GROQ_API_KEY"))
+                st.write("🌩️ Connecting to OpenAI (GPT-4o-mini)...")
+                llm = ChatOpenAI(temperature=0, model_name="gpt-4o-mini", openai_api_key=os.environ.get("OPENAI_KEY"))
                 
                 # Setup Pipeline (Strict Verification)
                 system_prompt = (

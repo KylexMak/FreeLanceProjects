@@ -2,6 +2,10 @@ import streamlit as st
 import os
 from dotenv import load_dotenv
 
+# Resolve paths relative to this script (needed for Streamlit Cloud)
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+FAISS_PATH = os.path.join(BASE_DIR, "faiss_index")
+
 # Load environment variables
 load_dotenv()
 
@@ -125,10 +129,10 @@ if user_input := st.chat_input("What would you like to know?"):
                 embeddings = HuggingFaceEmbeddings(model_name="sentence-transformers/all-MiniLM-L6-v2")
                 
                 st.write("📚 Indexing 2,400+ cards from FAISS...")
-                if not os.path.exists("faiss_index"):
+                if not os.path.exists(FAISS_PATH):
                      st.error("Error: Vector index not found! Please run 'python ingest.py' first.")
                      st.stop()
-                vector_store = FAISS.load_local("faiss_index", embeddings, allow_dangerous_deserialization=True)
+                vector_store = FAISS.load_local(FAISS_PATH, embeddings, allow_dangerous_deserialization=True)
                 retriever = vector_store.as_retriever(search_type="mmr", search_kwargs={"k": 30, "fetch_k": 90})
                 
                 st.write("🌩️ Connecting to Groq (Llama-3.3-70B)...")
